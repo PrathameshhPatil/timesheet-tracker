@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { Sun, Moon, Download, Upload, Trash2 } from 'lucide-react'
+import { Sun, Moon, Download, Upload, Trash2, UploadCloud, DownloadCloud, Cloud, CloudOff } from 'lucide-react'
 import { useApp, DEFAULT_CATEGORIES } from '../context/AppContext'
 import { Modal } from '../components/Modal'
 import { exportToJSON, importFromJSON } from '../utils/exportUtils'
@@ -22,11 +22,44 @@ export function Settings() {
     tasks,
     replaceAllTasks,
     deleteAllTasks,
+    gistSync,
   } = useApp()
 
   const [newCategory, setNewCategory] = useState('')
   const [confirmStep, setConfirmStep] = useState(0)
   const fileInputRef = useRef(null)
+  const [syncToken, setSyncToken] = useState('')
+  const [existingGistId, setExistingGistId] = useState('')
+  const [syncMode, setSyncMode] = useState('new')
+
+  const handleConnectNew = async (e) => {
+    e.preventDefault()
+    if (!syncToken.trim()) return
+    try {
+      await gistSync.connectNew(syncToken.trim(), tasks)
+      setSyncToken('')
+    } catch {
+      // toast already shown by the hook
+    }
+  }
+
+  const handleConnectExisting = async (e) => {
+    e.preventDefault()
+    if (!syncToken.trim() || !existingGistId.trim()) return
+    try {
+      const remoteTasks = await gistSync.connectExisting(syncToken.trim(), existingGistId.trim())
+      replaceAllTasks(remoteTasks)
+      setSyncToken('')
+      setExistingGistId('')
+    } catch {
+      // toast already shown by the hook
+    }
+  }
+
+  const handlePull = async () => {
+    const remoteTasks = await gistSync.pull()
+    if (remoteTasks) replaceAllTasks(remoteTasks)
+  }
 
   const handleAddCategory = (e) => {
     e.preventDefault()
@@ -177,6 +210,144 @@ export function Settings() {
             Clear All Data
           </button>
         </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
+        <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {gistSync.isConnected ? <Cloud size={16} /> : <CloudOff size={16} />}
+          Cloud Sync (GitHub Gist)
+        </h2>
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          Syncs your tasks to a private GitHub Gist so you can pick up the same data on another
+          device or browser. Needs a{' '}
+          <a
+            href="https://github.com/settings/tokens?type=beta"
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary underline"
+          >
+            fine-grained personal access token
+          </a>{' '}
+          scoped to <strong>Gists: Read and write</strong> only. The token is stored only in this
+          browser's local storage — never commit it anywhere, and revoke it on GitHub if you stop
+          using sync.
+        </p>
+
+        {gistSync.isConnected ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Connected to gist <code className="rounded bg-gray-100 dark:bg-gray-700 px-1 py-0.5 text-xs">{gistSync.gistId}</code>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {gistSync.lastSyncedAt
+                ? `Last synced ${new Date(gistSync.lastSyncedAt).toLocaleString()}`
+                : 'Not synced yet.'}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => gistSync.push(tasks)}
+                disabled={gistSync.isSyncing}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                <UploadCloud size={16} />
+                Push Now
+              </button>
+              <button
+                type="button"
+                onClick={handlePull}
+                disabled={gistSync.isSyncing}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                <DownloadCloud size={16} />
+                Pull Latest
+              </button>
+              <button
+                type="button"
+                onClick={gistSync.disconnect}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm font-medium text-danger transition-all duration-200 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <CloudOff size={16} />
+                Disconnect
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-3 flex gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setSyncMode('new')}
+                className={`rounded-full px-2.5 py-1 font-medium transition-all duration-200 ${
+                  syncMode === 'new'
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                }`}
+              >
+                First device (create new)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSyncMode('existing')}
+                className={`rounded-full px-2.5 py-1 font-medium transition-all duration-200 ${
+                  syncMode === 'existing'
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                }`}
+              >
+                Another device (connect existing)
+              </button>
+            </div>
+
+            {syncMode === 'new' ? (
+              <form onSubmit={handleConnectNew} className="flex gap-2">
+                <input
+                  type="password"
+                  value={syncToken}
+                  onChange={(e) => setSyncToken(e.target.value)}
+                  placeholder="GitHub personal access token"
+                  className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+                />
+                <button
+                  type="submit"
+                  disabled={gistSync.isSyncing}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {gistSync.isSyncing ? 'Connecting…' : 'Create Gist & Enable Sync'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleConnectExisting} className="space-y-2">
+                <input
+                  type="password"
+                  value={syncToken}
+                  onChange={(e) => setSyncToken(e.target.value)}
+                  placeholder="GitHub personal access token"
+                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={existingGistId}
+                    onChange={(e) => setExistingGistId(e.target.value)}
+                    placeholder="Gist ID (shown on your first device)"
+                    className="flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+                  />
+                  <button
+                    type="submit"
+                    disabled={gistSync.isSyncing}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {gistSync.isSyncing ? 'Connecting…' : 'Connect'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  This pulls the gist's tasks and replaces what's currently on this device.
+                </p>
+              </form>
+            )}
+          </div>
+        )}
       </section>
 
       <p className="text-center text-xs text-gray-400 dark:text-gray-500">TimeTrack v{APP_VERSION}</p>

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { useTasks } from '../hooks/useTasks'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { useGistSync } from '../hooks/useGistSync'
 import { sampleTasks } from '../data/sampleData'
 
 export const DEFAULT_CATEGORIES = [
@@ -35,7 +36,9 @@ export function AppProvider({ children }) {
   const [dailyTarget, setDailyTarget] = useLocalStorage('timetrack_daily_target', 8)
   const [workingDays, setWorkingDays] = useLocalStorage('timetrack_working_days', DEFAULT_WORKING_DAYS)
   const [isDark, toggleDarkMode] = useDarkMode()
+  const gistSync = useGistSync()
   const hasCheckedInit = useRef(false)
+  const hasMountedTasks = useRef(false)
 
   useEffect(() => {
     if (hasCheckedInit.current) return
@@ -51,6 +54,17 @@ export function AppProvider({ children }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!hasMountedTasks.current) {
+      hasMountedTasks.current = true
+      return
+    }
+    if (gistSync.isConnected) {
+      gistSync.pushDebounced(taskApi.tasks)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskApi.tasks])
 
   const categories = [...DEFAULT_CATEGORIES, ...customCategories]
 
@@ -86,6 +100,7 @@ export function AppProvider({ children }) {
     setWorkingDays,
     isDark,
     toggleDarkMode,
+    gistSync,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
