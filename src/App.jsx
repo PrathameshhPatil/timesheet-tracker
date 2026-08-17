@@ -10,7 +10,7 @@ import { Settings } from './pages/Settings'
 export function App() {
   return (
     <AppProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
           <Header />
           <main className="mx-auto max-w-6xl px-4 py-6 lg:px-6">
