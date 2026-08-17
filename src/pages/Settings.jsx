@@ -221,16 +221,16 @@ export function Settings() {
           Syncs your tasks to a private GitHub Gist so you can pick up the same data on another
           device or browser. Needs a{' '}
           <a
-            href="https://github.com/settings/tokens?type=beta"
+            href="https://github.com/settings/tokens/new?scopes=gist&description=TimeTrack%20sync"
             target="_blank"
             rel="noreferrer"
             className="text-primary underline"
           >
-            fine-grained personal access token
+            classic personal access token
           </a>{' '}
-          scoped to <strong>Gists: Read and write</strong> only. The token is stored only in this
-          browser's local storage — never commit it anywhere, and revoke it on GitHub if you stop
-          using sync.
+          with only the <strong>gist</strong> scope checked (fine-grained tokens don't support the
+          Gist API yet — GitHub will reject them). The token is stored only in this browser's
+          local storage — never commit it anywhere, and revoke it on GitHub if you stop using sync.
         </p>
 
         {gistSync.isConnected ? (

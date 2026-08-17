@@ -10,12 +10,17 @@ function authHeaders(token) {
 }
 
 async function parseErrorMessage(response) {
+  let message = `GitHub API error (${response.status})`
   try {
     const body = await response.json()
-    return body.message || `GitHub API error (${response.status})`
+    message = body.message || message
   } catch {
-    return `GitHub API error (${response.status})`
+    // keep default message
   }
+  if (response.status === 403 && /not accessible/i.test(message)) {
+    return `${message} — fine-grained tokens can't use the Gist API. Create a classic token with the "gist" scope instead.`
+  }
+  return message
 }
 
 export async function createGist(token, tasks) {
